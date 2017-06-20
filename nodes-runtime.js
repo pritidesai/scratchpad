@@ -22,14 +22,18 @@
   * @param whisk actions accept a single parameter,
   *        which must be a JSON object with following keys.
   *
-  * @param {string} action_name         - Name of the action to be created
-  * @param {string} action_location     - Directory containing action files
-  *        which must have index.js and can have package.json
+  * @param {string} action_name - Name of the action to be created
+  * @param {string} action_data - Base64 encoded compressed data containing
+  *     action files and packaging file. Must have index.js and can have
+  *     package.json. For example, run:
+  *         zip -rq action.zip action_files/
+  *         cat action.zip | base64 -
+  * 
   *
   * In this case, the params variable looks like:
   *     {
   *         "action_name": "xxxx",
-  *         "action_location": "xxxx",
+  *         "action_data": "xxxx",
   *     }
   *
   * @return which must be a JSON object. It will be the output of this action.
@@ -45,63 +49,107 @@ function main(params) {
         return { error: errorMsg };
     }
 
-    var action_name = params.action_name;
-    var action_location = params.action_location;
+    var actionName = params.action_name;
+    var actionData = params.action_data;
 
-    // assuming for now that action_location is base64 encoded zip file content
-    const fs = require('fs');
-    var file = fs.readFileSync(action_location, {encoding: 'base64'});
-    console.log(file);
+    var fs = require('fs');
+    var exec = require('child_process').exec;
 
+    console.log("Action Data", actionData);
 
-/*    var exec = require('child_process').exec;
+    var zipFileDir = "/tmp/" + actionName + '/';
+    var zipFileName = actionName + ".zip";
+    var zipFile = zipFileDir + zipFileName;
+
+    actionData += actionData.replace('+', ' ');
+    binaryActionData = new Buffer(actionData, 'base64').toString('binary');
+
     return new Promise(function (resolve, reject) {
-        console.log('I am inside of promise');
-        exec('echo Hello', {
-            stdio: 'inherit',
-            shell: true,
-            cwd: action_location 
-        }, (err, stdout, stderr) => {
-            console.log(action_location);
+        // create a temporary directory
+        cmd = 'mkdir ' + zipFileDir;
+        exec(cmd, function (err, data) {
+            // rejects the promise with `err` as the reason
             if (err) {
-                console.log(err);
-                console.error(`Error running npm install: ${err}`);
                 reject(err);
-            } else {
-                console.log(stdout)
-                console.log(`npm install was successful ${stdout}`);
-                resolve();
             }
-        });
+            // fulfills the promise with `data` as the value
+            console.log(data);
+            resolve(data);
+        })
+    })     
+    .then(function () {
+        return new Promise(function (resolve, reject) {
+            // write a zip file with base64 encoded action data
+            fs.writeFile(zipFile, binaryActionData, "binary", function (err, data) {
+                if (err) {
+                    reject(err);
+                }
+                console.log(data);
+                resolve(data);
+            })
+        })
+    })
+    .then (function () {
+        // extract all the files/data from action data with
+        // unzip -o -d /tmp/ /tmp/action.zip && rm /tmp/action.zip
+        cmd = 'unzip -o ' + zipFile + ' && rm ' + zipFile;
+        return new Promise(function (resolve, reject) {
+            exec(cmd, {cwd: zipFileDir}, function (err, data) {
+                if (err) {
+                    reject(err);
+                }
+                resolve(data);
+                console.log(data);
+            })
+        })
+    })
+    .then(function () {
+        cmd = 'npm install --production';
+        return new Promise(function (resolve, reject) {
+            exec(cmd, {cwd: zipFileDir}, function (err, data) {
+                if (err) {
+                    console.log('Failed to install npm packages ', err);
+                    reject(err);
+                } else {
+                    console.log('successfully installed npm packages', data);
+                    resolve(data);
+                }
+            })
+        })
+    })
+    .then (function () {
+        cmd = 'cd ' + zipFileDir + ' && zip -rq ' + zipFileName + ' *';
+        return new Promise(function (resolve, reject) {
+            exec(cmd, {cwd: zipFileDir}, function (err, data) {
+                if (err) {
+                    console.log('Failed to install npm packages ', err);
+                    reject(err);
+                } else {
+                    console.log('successfully installed npm packages', res);
+                    resolve(data);
+                }
+            })
+        })
+    })
+    .then (function () {
+        // require the OpenWhisk npm package
+        var openwhisk = require("openwhisk");
+         // instantiate the openwhisk instance before you can use it
+        wsk = openwhisk();
+        const actionData = fs.readFileSync(zipFile)
+        return wsk.actions.create({actionName, actionData})
+        .then (result => {
+            console.log('action created');
+        })
+        .catch (err => {
+            console.error('failed to create action', err);
+        })
+    })
+    // catch handler
+    .catch(function (err) {
+        console.error('Error: ', err);
+        return {error: err};
     });
-*/
-
-    var spawn = require('child_process').exec;
-    var promise = new Promise(function(resolve, reject) {
-        var child = spawn('cat app.js');
-// npm install', {cwd: action_location});
-        var tmp = {stdout: "", stderr: "", code: "undefined"};
-        console.log("Child STDOUT");
-        child.stdout.on('data', function (data) {
-            tmp.stdout = tmp.stdout + data;
-        });
-        child.stderr.on('data', function (data) {
-            tmp.stderr = tmp.stderr + data;
-        });
-        child.on('close', function (code) {
-            tmp.code = code;
-            if (tmp.code === 0) {
-                console.log(tmp.stdout);
-                resolve({msg: tmp.stdout});
-            } else {
-                console.log(tmp.stderr);
-                resolve({msg: tmp.stderr});
-            }
-
-        });
-    });
-
-    return promise;
 
 }
 
@@ -115,12 +163,55 @@ function validateParams(params) {
     if (params.action_name === undefined) {
         return ('No action name provided, please specify action_name.');
     }
-    else if (params.action_location === undefined) {
-        return ('No action location provided, please specify action_location.');
+    else if (params.action_data === undefined) {
+        return ('No action data provided, please specify action_data.');
     }
     else {
         return undefined;
     }
+}
+
+function writeZipFile(encodedActionData, zipFile) {
+
+    encodedActionData += encodedActionData.replace('+', ' ');
+    binaryActionData = new Buffer(encodedActionData, 'base64').toString('binary');
+
+    return new Promise(function (resolve, reject) {
+        // Create a zip file with base64 encoded action data
+        fs.writeFile(zipFile, binaryActionData, "binary", function (err, data) {
+            // rejects the promise with `err` as the reason
+            if (err) {
+                reject(err);
+            }
+            console.log('Successfully created zip file: ', zipFile);
+            // fulfills the promise with `data` as the value
+            resolve(data);
+        })
+    // catch handler - create a zip file
+    }).catch(function (err) {
+        console.log('Failed to create a zip file: ', zipFile);
+        console.error('Error: ', err);
+        return undefined;
+    });
+}
+
+function extractActionFiles(zipFileDir, zipFile) {
+    // extract all the files/data from action data
+    var cmd = 'unzip -o -d ' + zipFileDir + ' ' + zipFile;
+    return new Promise(function (resolve, reject) {
+        exec(cmd, {cwd: zipFileDir}, function (err, res, body) {
+            if (err) {
+                reject(err);
+            }
+            console.log('Successfully extracted action files/data: ', res);
+            resolve();
+        })
+    // catch handler - extract zip file
+    }).catch(function (err) {
+        console.log('Failed to extract action files/data: ', zipFile);
+        console.error('Error: ', err);
+        return undefined;
+    })
 }
 
 /**
