@@ -61,6 +61,11 @@ function main(params) {
     var zipFileName = actionName + ".zip";
     var zipFile = zipFileDir + zipFileName;
 
+    // require the OpenWhisk npm package
+    var openwhisk = require("openwhisk");
+    // instantiate the openwhisk instance before you can use it
+    var wsk = openwhisk();
+
     actionData += actionData.replace('+', ' ');
     binaryActionData = new Buffer(actionData, 'base64').toString('binary');
 
@@ -70,11 +75,15 @@ function main(params) {
         exec(cmd, function (err, data) {
             // rejects the promise with `err` as the reason
             if (err) {
+                console.error('Failed to create temporary directory to hold action data: ', zipFileDir);
+                console.error(err);
                 reject(err);
+            } else {
+                // fulfills the promise with `data` as the value
+                console.log('Successfully created temporary directory to hold action data: ', zipFileDir);
+                console.log(data);
+                resolve(data);
             }
-            // fulfills the promise with `data` as the value
-            console.log(data);
-            resolve(data);
         })
     })     
     .then(function () {
@@ -82,10 +91,15 @@ function main(params) {
             // write a zip file with base64 encoded action data
             fs.writeFile(zipFile, binaryActionData, "binary", function (err, data) {
                 if (err) {
+                    console.error('Failed to create zip file with action_data: ', zipFile);
+                    console.error(err);
                     reject(err);
+                } else {
+                    // fulfills the promise with `data` as the value
+                    console.log('Successfully created zip file: ', zipFile);
+                    console.log(data);
+                    resolve(data);
                 }
-                console.log(data);
-                resolve(data);
             })
         })
     })
@@ -96,10 +110,15 @@ function main(params) {
         return new Promise(function (resolve, reject) {
             exec(cmd, {cwd: zipFileDir}, function (err, data) {
                 if (err) {
+                    console.error('Failed to extract action files from action data: ', zipFile);
+                    console.error(err);
                     reject(err);
+                } else {
+                    // fulfills the promise with `data` as the value
+                    console.log('Successfully extracted action files from action data: ', zipFile);
+                    console.log(data);
+                    resolve(data);
                 }
-                resolve(data);
-                console.log(data);
             })
         })
     })
@@ -120,31 +139,34 @@ function main(params) {
     .then (function () {
         //cmd = 'cd ' + zipFileDir + ' && zip -rq ' + zipFileName + ' *';
         cmd = 'zip -rq ' + zipFileName + ' *';
-        cmd = "find " + zipFileDir + " -name '*' -exec gzip {} ';'";
         return new Promise(function (resolve, reject) {
             exec(cmd, {cwd: zipFileDir}, function (err, data) {
                 if (err) {
-                    console.log('Failed to install npm packages ', err);
+                    console.log('Failed to create zip file from action files and dependent npm packages', err);
                     reject(err);
                 } else {
-                    console.log('successfully installed npm packages', data);
+                    console.log('successfully created zip file from action files and dependent npm packages', data);
                     resolve(data);
                 }
             })
         })
     })
     .then (function () {
-        // require the OpenWhisk npm package
-        var openwhisk = require("openwhisk");
-         // instantiate the openwhisk instance before you can use it
-        wsk = openwhisk();
-        const actionData = fs.readFileSync(zipFile)
-        return wsk.actions.create({actionName, actionData})
+        console.log("inside of read file to create action")
+        actionData = fs.readFileSync(zipFile)
+        return wsk.actions.create({actionName: actionName, action: actionData})
+//        return wsk.actions.list()
         .then (result => {
-            console.log('action created');
+            console.log('action created', result);
+            return {
+                message: result
+            };
         })
         .catch (err => {
             console.error('failed to create action', err);
+            return {
+                error: err
+            };
         })
     })
     // catch handler
@@ -173,49 +195,6 @@ function validateParams(params) {
     }
 }
 
-function writeZipFile(encodedActionData, zipFile) {
-
-    encodedActionData += encodedActionData.replace('+', ' ');
-    binaryActionData = new Buffer(encodedActionData, 'base64').toString('binary');
-
-    return new Promise(function (resolve, reject) {
-        // Create a zip file with base64 encoded action data
-        fs.writeFile(zipFile, binaryActionData, "binary", function (err, data) {
-            // rejects the promise with `err` as the reason
-            if (err) {
-                reject(err);
-            }
-            console.log('Successfully created zip file: ', zipFile);
-            // fulfills the promise with `data` as the value
-            resolve(data);
-        })
-    // catch handler - create a zip file
-    }).catch(function (err) {
-        console.log('Failed to create a zip file: ', zipFile);
-        console.error('Error: ', err);
-        return undefined;
-    });
-}
-
-function extractActionFiles(zipFileDir, zipFile) {
-    // extract all the files/data from action data
-    var cmd = 'unzip -o -d ' + zipFileDir + ' ' + zipFile;
-    return new Promise(function (resolve, reject) {
-        exec(cmd, {cwd: zipFileDir}, function (err, res, body) {
-            if (err) {
-                reject(err);
-            }
-            console.log('Successfully extracted action files/data: ', res);
-            resolve();
-        })
-    // catch handler - extract zip file
-    }).catch(function (err) {
-        console.log('Failed to extract action files/data: ', zipFile);
-        console.error('Error: ', err);
-        return undefined;
-    })
-}
-
 /**
  * Run npm install --prefix <action_location> --production
  * run npm install if package.json file exists at action_location
@@ -236,3 +215,5 @@ function extractActionFiles(zipFileDir, zipFile) {
  * and/or package.json is still at the root which is must for zipped actions.
  * https://www.npmjs.com/package/archiver
  */
+
+exports.main = main;
