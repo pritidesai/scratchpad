@@ -14,7 +14,9 @@ wsk action create my-action --kind nodejs:6 action.zip
 
 This automation is created to address this limitation.
 
-## Build docker image using nodejs6
+## Deployment this Automation - nodejs-build
+
+### Build docker image using nodejs6
 
 For this automation, we need a docker image using [nodejs6](https://github.com/apache/incubator-openwhisk/blob/dad7243269ba2554a81fcdd9dabfba4201eb7f7f/core/nodejs6Action/Dockerfile) and adding `zip`.
 
@@ -32,7 +34,7 @@ Replace <user> with your docker hub username.
 
 You can skip this step to **experiment** by using a prebuilt image [pritidesai8/nodejs6action-build](https://hub.docker.com/r/pritidesai8/nodejs6action-build/), but for production use you must create your own docker image.
 
-## Deploy this Automation - Create an action nodejs-build
+### Create an action nodejs-build
 
 Run `./deploy.sh` to create `action.zip` with [`index.js`](src/index.js) and deploy a new action `nodejs-build` to OpenWhisk with your docker image.
 
@@ -40,7 +42,7 @@ Run `./deploy.sh` to create `action.zip` with [`index.js`](src/index.js) and dep
 ./deloy.sh
 ```
 
-## Invoke nodejs-build
+## Create Your Own Action - my-action
 
 Invoke this new action using the `wsk` CLI:
 
@@ -53,7 +55,7 @@ zip -rq action.zip *
 wsk action invoke nodejs-build --blocking --param action_name my-action --param action_data `cat action.zip | base64`
 ```
 
-## Customize Deployment
+## Customize Deployment of nodejs-build
 
 You can override some settings in [`deploy.sh`](./deploy,sh) using following enviornment variables:
 
