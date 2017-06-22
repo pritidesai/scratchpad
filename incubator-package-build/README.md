@@ -83,7 +83,9 @@ Adjust the [`./deloy.sh`](./deploy.sh) as necessary for more customizations.
 
 ## Improvements
 
-### This automation has a limitation as well where users have to create a zip file and provide base64 encoded zip content as a parameter to nodejs-build. We would ideally like to have an automation such that users can provide path to action files and those action files are uploaded to docker runtime container, with the following workflow:
+### Improve Usage
+
+This automation has a limitation as well where users have to create a zip file and provide base64 encoded zip content as a parameter to nodejs-build. We would ideally like to have an automation such that users can provide path to action files and those action files are uploaded to docker runtime container, with the following workflow:
 
 ```
 ls actions/my-action/
@@ -92,6 +94,6 @@ package.json
 wsk action invoke nodejs-build --blocking --param action_name my-action --param action_data actions/my-action
 ```
 
-### Add more runtimes
+### Add More Runtimes
 
 This automation should be extended to include other runtimes such as Swift, Java, and Python.
