@@ -27,7 +27,7 @@
   *     action files and packaging file. Must have index.js and can have
   *     package.json. For example, run:
   *         zip -rq action.zip action_files/
-  *         cat action.zip | base64 -
+  *         cat action.zip | base64
   * 
   *
   * In this case, the params variable looks like:
@@ -100,7 +100,6 @@ function main(params) {
                 } else {
                     // fulfills the promise with `data` as the value
                     console.log('Successfully created zip file: ', zipFile);
-                    console.log(data);
                     resolve(data);
                 }
             })
@@ -136,16 +135,39 @@ function main(params) {
          * Running npm install wihtout package.json fails with "enoent" - 
          * ENOENT: no such file or directory, open <zipFileDir>/package.json
          */
-        cmd = 'npm install --production';
         return new Promise(function (resolve, reject) {
             fs.exists(zipFileDir + 'package.json', exists => {
                 if (exists) {
+                    cmd = 'npm install --production';
                     exec(cmd, {cwd: zipFileDir}, function (err, data) {
                         if (err) {
                             console.log('Failed to install npm packages ', err);
                             reject(err);
                         } else {
                             console.log('successfully installed npm packages', data);
+                            resolve(data);
+                        }
+                    })
+                } else {
+                    resolve();
+                }
+            })
+        })
+    })
+    .then (function () {
+        /**
+         * Prune package directories under node_modules to delete test/ and tests/ directories
+         */
+        return new Promise(function (resolve, reject) {
+            fs.exists(zipFileDir + 'node_modules', exists => {
+                if (exists) {
+                    cmd = 'find . -type d -name "test*" -exec rm -r {} +'
+                    exec(cmd, {cwd: zipFileDir + 'node_modules'}, function (err, data) {
+                        if (err) {
+                            console.log('Failed to prune node_modules to remove tests directory', err);
+                            reject(err);
+                        } else {
+                            console.log('Successfully pruned node_modules to remove tests directory', data);
                             resolve(data);
                         }
                     })
@@ -175,17 +197,21 @@ function main(params) {
         })
     })
     .then (function () {
-        console.log("inside of read file to create action")
         actionData = fs.readFileSync(zipFile)
-        return wsk.actions.create({actionName: actionName, action: actionData})
+        // using "update" action instead of "create" action
+        // Update action creates a new action if it doesn't exist
+        // we decided to use update action mode here as create action fails if you
+        // try to create an action which already exists so you have to first delete
+        // it and than recreate it.
+        return wsk.actions.update({actionName: actionName, action: actionData})
         .then (result => {
-            console.log('action created', result);
+            console.log('Successfully created/updated action: ', actionName, result);
             return {
                 message: result
             };
         })
         .catch (err => {
-            console.error('failed to create action', err);
+            console.error('Failed to create/update action: ', actionName, err);
             return {
                 error: err
             };
@@ -216,11 +242,5 @@ function validateParams(params) {
         return undefined;
     }
 }
-
-
-/**
- * Prune package directories under node_modules to delete test/ and tests/ directories
- */
-
 
 exports.main = main;
