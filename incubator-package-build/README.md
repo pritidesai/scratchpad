@@ -1,4 +1,4 @@
-# Automation to Package and Deploy Third Party Modules - NodeJS 
+# Package and Deploy Third Party Modules - NodeJS 
 
 OpenWhisk has a limitation in creating actions which are dependent on third party modules. Users have to install such modules locally before creating a new action and package them as part of action source. In addition, those packages are not available to any other action in the same runtime container. For example:
 
