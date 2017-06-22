@@ -25,6 +25,6 @@ echo Deploying OpenWhisk action $OPENWHISK_ACTION_NAME with content of ${OPENWHI
 curl -u $OPENWHISK_AUTH -d '{"namespace":"_","name":"'"$OPENWHISK_ACTION_NAME"'","exec":{"kind":"blackbox","code":"'"$OPENWHISK_ACTION_SOURCE"'","image":"'"$OPENWHISK_ACTION_DOCKER_IMAGE"'"}}' -X PUT -H "Content-Type: application/json" https://$OPENWHISK_HOST/api/v1/namespaces/_/actions/$OPENWHISK_ACTION_NAME?overwrite=true 1>/dev/null
 #wsk action update ${OPENWHISK_ACTION_NAME} ${OPENWHISK_ZIP} --docker ${OPENWHISK_ACTION_DOCKER_IMAGE}
 echo Action successfully deploy
-echo Invoke action usin:
-echo wsk action invoke $OPENWHISK_ACTION_NAME -r 
+echo Invoke action using:
+echo wsk action invoke $OPENWHISK_ACTION_NAME -r --param action_name <action name> --param action_data <action data>
 
