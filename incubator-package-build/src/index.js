@@ -57,7 +57,10 @@ function main(params) {
 
     console.log("Action Data", actionData);
 
-    var zipFileDir = "/tmp/" + actionName + '/';
+    // create temporary directory under /tmp/<actionName>-<timestamp>/
+    // create new directory for each invocation otherwise with subsequent
+    // execution, directory creation fails
+    var zipFileDir = "/tmp/" + actionName + '-' + new Date().getTime() + '/';
     var zipFileName = actionName + ".zip";
     var zipFile = zipFileDir + zipFileName;
 
@@ -123,21 +126,41 @@ function main(params) {
         })
     })
     .then(function () {
+        /**
+         * Run: cd zipFileDir && npm install --production
+         * run npm install only if package.json file exists at zipFileDir
+         * package.json file contains list of npm packages which are needed for
+         * the new action getting created.
+         * npm install reads the list of dependencies from package.json file and
+         * installs required packages.
+         * Running npm install wihtout package.json fails with "enoent" - 
+         * ENOENT: no such file or directory, open <zipFileDir>/package.json
+         */
         cmd = 'npm install --production';
         return new Promise(function (resolve, reject) {
-            exec(cmd, {cwd: zipFileDir}, function (err, data) {
-                if (err) {
-                    console.log('Failed to install npm packages ', err);
-                    reject(err);
+            fs.exists(zipFileDir + 'package.json', exists => {
+                if (exists) {
+                    exec(cmd, {cwd: zipFileDir}, function (err, data) {
+                        if (err) {
+                            console.log('Failed to install npm packages ', err);
+                            reject(err);
+                        } else {
+                            console.log('successfully installed npm packages', data);
+                            resolve(data);
+                        }
+                    })
                 } else {
-                    console.log('successfully installed npm packages', data);
-                    resolve(data);
+                    resolve();
                 }
             })
         })
     })
     .then (function () {
-        //cmd = 'cd ' + zipFileDir + ' && zip -rq ' + zipFileName + ' *';
+        /**
+         * Zip the whole directory including package.json, index.js, and node_modules.
+         * Maintain the same directory structure while zipping so that index.js
+         * and/or package.json are still at the root which is must for zipped actions.
+         */
         cmd = 'zip -rq ' + zipFileName + ' *';
         return new Promise(function (resolve, reject) {
             exec(cmd, {cwd: zipFileDir}, function (err, data) {
@@ -155,7 +178,6 @@ function main(params) {
         console.log("inside of read file to create action")
         actionData = fs.readFileSync(zipFile)
         return wsk.actions.create({actionName: actionName, action: actionData})
-//        return wsk.actions.list()
         .then (result => {
             console.log('action created', result);
             return {
@@ -195,25 +217,10 @@ function validateParams(params) {
     }
 }
 
-/**
- * Run npm install --prefix <action_location> --production
- * run npm install if package.json file exists at action_location
- * package.json file contains list of dependencies
- * npm install reads the list of dependencies from package.json file and
- * install required packages.
- * Running npm install wihtout package.json fails with "enoent" - 
- *      ENOENT: no such file or directory, open <action_location>/package.json
- */
 
 /**
  * Prune package directories under node_modules to delete test/ and tests/ directories
  */
 
-/**
- * Zip the whole directory including package.json, index.js, and node_modules.
- * Maintain the same directory structure while zipping so that index.js
- * and/or package.json is still at the root which is must for zipped actions.
- * https://www.npmjs.com/package/archiver
- */
 
 exports.main = main;
