@@ -14,7 +14,7 @@ wsk action create my-action --kind nodejs:6 action.zip
 
 This automation is created to address this limitation.
 
-## Deployment this Automation - nodejs-build
+## Deploy this Automation - nodejs-build
 
 ### Build docker image using nodejs6
 
@@ -81,4 +81,17 @@ You can also provide name of the action, an existing zip archive, and the name o
 
 Adjust the [`./deloy.sh`](./deploy.sh) as necessary for more customizations.
 
-**Note:** This automation will be extended to other runtimes include Swift, Java, and Python.
+## Improvements
+
+### This automation has a limitation as well where users have to create a zip file and provide base64 encoded zip content as a parameter to nodejs-build. We would ideally like to have an automation such that users can provide path to action files and those action files are uploaded to docker runtime container, with the following workflow:
+
+```
+ls actions/my-action/
+index.js
+package.json
+wsk action invoke nodejs-build --blocking --param action_name my-action --param action_data actions/my-action
+```
+
+### Add more runtimes
+
+This automation should be extended to include other runtimes such as Swift, Java, and Python.
